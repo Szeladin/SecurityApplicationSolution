@@ -1,0 +1,79 @@
+@page "/documents"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SecurityApplication.Components.Account.Shared
+@using SecurityApplication.Data
+@using SecurityApplication.Security
+
+@attribute [Authorize(Policy = Permissions.DocumentsRead)]
+
+@inject ApplicationDbContext Db
+@inject IAuthorizationService AuthorizationService
+
+<PageTitle>Dokumenty</PageTitle>
+
+<h1>Dokumenty</h1>
+
+<StatusMessage Message="@message" />
+
+<AuthorizeView Policy="@Permissions.DocumentsCreate">
+    <p><a class="btn btn-primary" href="documents/new">Nowy dokument</a></p>
+</AuthorizeView>
+
+<form method="post" @formname="document-delete" @onsubmit="DeleteAsync">
+    <AntiforgeryToken />
+    @foreach (var doc in documents)
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">@doc.Title</h5>
+                <h6 class="card-subtitle mb-2 text-muted">@doc.AuthorUserName, @doc.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</h6>
+                <p class="card-text" style="white-space: pre-line">@doc.Content</p>
+                <AuthorizeView Policy="@Permissions.DocumentsEdit">
+                    <a class="btn btn-sm btn-outline-primary" href="documents/edit/@doc.Id">Edytuj</a>
+                </AuthorizeView>
+                <AuthorizeView Policy="@Permissions.DocumentsDelete">
+                    <button type="submit" name="DeleteId" value="@doc.Id" class="btn btn-sm btn-outline-danger"
+                            onclick="return confirm('Usunąć dokument?')">Usuń</button>
+                </AuthorizeView>
+            </div>
+        </div>
+    }
+</form>
+
+@code {
+    private List<Document> documents = [];
+    private string? message;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "document-delete")]
+    private int? DeleteId { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() =>
+        documents = await Db.Documents.AsNoTracking().OrderByDescending(d => d.CreatedAt).ToListAsync();
+
+    private async Task DeleteAsync()
+    {
+        // Przycisk "Usuń" jest ukryty dla ról bez uprawnienia, ale to serwer decyduje o dostępie.
+        if (!(await AuthorizationService.AuthorizeAsync(HttpContext.User, Permissions.DocumentsDelete)).Succeeded)
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+            message = "Error: 403 - brak uprawnienia do usuwania dokumentów.";
+            return;
+        }
+
+        var doc = await Db.Documents.FindAsync(DeleteId);
+        if (doc is not null)
+        {
+            Db.Documents.Remove(doc);
+            await Db.SaveChangesAsync();
+            message = "Dokument został usunięty.";
+        }
+        await LoadAsync();
+    }
+}

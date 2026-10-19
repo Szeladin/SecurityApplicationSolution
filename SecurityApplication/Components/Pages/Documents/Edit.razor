@@ -1,0 +1,119 @@
+@page "/documents/new"
+@page "/documents/edit/{Id:int}"
+
+@using Microsoft.AspNetCore.Authorization
+@using SecurityApplication.Components.Account
+@using SecurityApplication.Components.Account.Shared
+@using SecurityApplication.Data
+@using SecurityApplication.Security
+
+@attribute [Authorize(Policy = Permissions.DocumentsRead)]
+
+@inject ApplicationDbContext Db
+@inject IAuthorizationService AuthorizationService
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>@(IsNew ? "Nowy dokument" : "Edycja dokumentu")</PageTitle>
+
+<h1>@(IsNew ? "Nowy dokument" : "Edycja dokumentu")</h1>
+
+<StatusMessage Message="@message" />
+
+@if (Input is not null)
+{
+    <div class="row">
+        <div class="col-xl-8">
+            <EditForm Model="Input" FormName="document-edit" OnValidSubmit="OnValidSubmitAsync" method="post">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" role="alert" />
+                <div class="mb-3">
+                    <label for="Input.Title" class="form-label">Tytuł</label>
+                    <InputText @bind-Value="Input.Title" id="Input.Title" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label for="Input.Content" class="form-label">Treść</label>
+                    <InputTextArea @bind-Value="Input.Content" id="Input.Content" class="form-control" rows="8" />
+                </div>
+                <button type="submit" class="btn btn-primary">Zapisz</button>
+                <a class="btn btn-secondary" href="documents">Anuluj</a>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private string? message;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    [SupplyParameterFromForm]
+    private Document? Input { get; set; }
+
+    private bool IsNew => Id is null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Tworzenie i edycja wymagają osobnych uprawnień - sprawdzane po stronie serwera.
+        var permission = IsNew ? Permissions.DocumentsCreate : Permissions.DocumentsEdit;
+        if (!(await AuthorizationService.AuthorizeAsync(HttpContext.User, permission)).Succeeded)
+        {
+            Input = null;
+            RedirectManager.RedirectTo("Account/AccessDenied");
+            return;
+        }
+
+        if (Input is not null)
+        {
+            return;
+        }
+
+        if (IsNew)
+        {
+            Input = new();
+            return;
+        }
+
+        Input = await Db.Documents.FindAsync(Id);
+        if (Input is null)
+        {
+            message = "Error: Nie znaleziono dokumentu.";
+        }
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (Input is null)
+        {
+            return;
+        }
+
+        if (IsNew)
+        {
+            Db.Documents.Add(new Document
+            {
+                Title = Input.Title,
+                Content = Input.Content,
+                AuthorUserName = HttpContext.User.Identity!.Name!,
+                CreatedAt = DateTime.UtcNow,
+            });
+        }
+        else
+        {
+            var doc = await Db.Documents.FindAsync(Id);
+            if (doc is null)
+            {
+                message = "Error: Nie znaleziono dokumentu.";
+                return;
+            }
+            doc.Title = Input.Title;
+            doc.Content = Input.Content;
+        }
+
+        await Db.SaveChangesAsync();
+        RedirectManager.RedirectTo("documents");
+    }
+}

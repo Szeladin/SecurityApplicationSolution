@@ -1,0 +1,177 @@
+﻿@page "/admin/users/new"
+@page "/admin/users/edit/{Id}"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SecurityApplication.Components.Account.Shared
+@using SecurityApplication.Data
+@using SecurityApplication.Security
+
+@attribute [Authorize(Policy = Permissions.UsersManage)]
+
+@inject UserManager<ApplicationUser> UserManager
+@inject PasswordService PasswordService
+
+<PageTitle>@(IsNew ? "Nowy użytkownik" : "Edycja użytkownika")</PageTitle>
+
+<h1>@(IsNew ? "Nowy użytkownik" : $"Edycja użytkownika {user?.UserName}")</h1>
+
+<StatusMessage Message="@message" />
+
+@if (oneTimePassword is not null)
+{
+    <div class="alert alert-warning">
+        Konto <strong>@user!.UserName</strong> zostało utworzone. Hasło jednorazowe:
+        <code class="fs-5">@oneTimePassword.Value.Password</code>
+        (ważne do @oneTimePassword.Value.ExpiresAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")). Przekaż je użytkownikowi - nie będzie ponownie wyświetlone.
+    </div>
+    <a class="btn btn-secondary" href="admin/users">Powrót do listy</a>
+}
+else if (Input is not null && (IsNew || user is not null))
+{
+    <div class="row">
+        <div class="col-xl-6">
+            <EditForm Model="Input" FormName="user-edit" OnValidSubmit="OnValidSubmitAsync" method="post">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" role="alert" />
+                <div class="form-floating mb-3">
+                    @if (IsNew)
+                    {
+                        <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control" placeholder="login" />
+                    }
+                    else
+                    {
+                        <input value="@user!.UserName" id="Input.UserName" class="form-control" disabled />
+                        <input type="hidden" name="Input.UserName" value="@user!.UserName" />
+                    }
+                    <label for="Input.UserName">Login</label>
+                </div>
+                <div class="form-floating mb-3">
+                    <InputText @bind-Value="Input.FullName" id="Input.FullName" class="form-control" placeholder="imię i nazwisko" />
+                    <label for="Input.FullName">Imię i nazwisko</label>
+                </div>
+                <div class="form-floating mb-3">
+                    @if (isAdminAccount)
+                    {
+                        <input value="@Roles.Administrator" id="Input.Role" class="form-control" disabled />
+                    }
+                    else
+                    {
+                        <InputSelect @bind-Value="Input.Role" id="Input.Role" class="form-select">
+                            @foreach (var role in Roles.Assignable)
+                            {
+                                <option value="@role">@role</option>
+                            }
+                        </InputSelect>
+                    }
+                    <label for="Input.Role">Rola</label>
+                </div>
+                <button type="submit" class="btn btn-primary">@(IsNew ? "Utwórz konto" : "Zapisz")</button>
+                <a class="btn btn-secondary" href="admin/users">Anuluj</a>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private ApplicationUser? user;
+    private bool isAdminAccount;
+    private string? message;
+    private (string Password, DateTime ExpiresAt)? oneTimePassword;
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    [SupplyParameterFromForm]
+    private InputModel? Input { get; set; }
+
+    private bool IsNew => Id is null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsNew)
+        {
+            Input ??= new();
+            return;
+        }
+
+        user = await UserManager.FindByIdAsync(Id!);
+        if (user is null)
+        {
+            message = "Error: Nie znaleziono użytkownika.";
+            return;
+        }
+
+        isAdminAccount = user.UserName == DbSeeder.AdminUserName;
+        // Rola pobierana przed przypisaniem Input - formularz renderuje się dopiero, gdy model jest gotowy.
+        var role = (await UserManager.GetRolesAsync(user)).FirstOrDefault() ?? Roles.Czytelnik;
+        Input ??= new()
+        {
+            UserName = user.UserName!,
+            FullName = user.FullName,
+            Role = role,
+        };
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (Input is null)
+        {
+            return;
+        }
+
+        // Rola z formularza jest walidowana po stronie serwera - nie da się nadać roli Administrator.
+        if (!isAdminAccount && !Roles.Assignable.Contains(Input.Role))
+        {
+            message = "Error: Nieprawidłowa rola.";
+            return;
+        }
+
+        if (IsNew)
+        {
+            user = new ApplicationUser { UserName = Input.UserName.Trim(), FullName = Input.FullName.Trim() };
+            var result = await UserManager.CreateAsync(user);
+            if (!result.Succeeded)
+            {
+                message = $"Error: {string.Join(" ", result.Errors.Select(e => e.Description))}";
+                user = null;
+                return;
+            }
+            await UserManager.AddToRoleAsync(user, Input.Role);
+            oneTimePassword = await PasswordService.SetOneTimePasswordAsync(user);
+            return;
+        }
+
+        if (user is null)
+        {
+            return;
+        }
+
+        user.FullName = Input.FullName.Trim();
+        await UserManager.UpdateAsync(user);
+        if (!isAdminAccount)
+        {
+            var currentRoles = await UserManager.GetRolesAsync(user);
+            if (!currentRoles.SequenceEqual([Input.Role]))
+            {
+                await UserManager.RemoveFromRolesAsync(user, currentRoles);
+                await UserManager.AddToRoleAsync(user, Input.Role);
+            }
+        }
+        message = "Zmiany zostały zapisane.";
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "Podaj login.")]
+        [StringLength(50, MinimumLength = 3, ErrorMessage = "Login musi mieć od 3 do 50 znaków.")]
+        public string UserName { get; set; } = "";
+
+        [Required(ErrorMessage = "Podaj imię i nazwisko.")]
+        [StringLength(100)]
+        public string FullName { get; set; } = "";
+
+        public string Role { get; set; } = Roles.Czytelnik;
+    }
+}

@@ -1,4 +1,4 @@
-﻿@page "/Account/Login"
+@page "/Account/Login"
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
@@ -8,39 +8,32 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject ILogger<Login> Logger
-@inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Log in</PageTitle>
+<PageTitle>Logowanie</PageTitle>
 
-<h1>Log in</h1>
+<h1>Logowanie</h1>
 <div class="row">
     <div class="col-lg-6">
         <section>
+            @if (Reason == "timeout")
+            {
+                <div class="alert alert-warning" role="alert">Sesja wygasła z powodu bezczynności. Zaloguj się ponownie.</div>
+            }
             <StatusMessage Message="@errorMessage" />
             <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
                 <DataAnnotationsValidator />
-                <h2>Use a local account to log in.</h2>
-                <hr />
                 <ValidationSummary class="text-danger" role="alert" />
                 <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                    <label for="Input.Email" class="form-label">Email</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger" />
+                    <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control" autocomplete="username" aria-required="true" placeholder="login" />
+                    <label for="Input.UserName" class="form-label">Login</label>
                 </div>
                 <div class="form-floating mb-3">
-                    <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
-                    <label for="Input.Password" class="form-label">Password</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger" />
-                </div>
-                <div class="checkbox mb-3">
-                    <label class="form-label">
-                        <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
-                        Remember me
-                    </label>
+                    <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="hasło" />
+                    <label for="Input.Password" class="form-label">Hasło</label>
                 </div>
                 <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+                    <button type="submit" class="w-100 btn btn-lg btn-primary">Zaloguj</button>
                 </div>
             </EditForm>
         </section>
@@ -48,6 +41,11 @@
 </div>
 
 @code {
+    private const string InvalidLoginMessage = "Error: Login lub hasło niepoprawne";
+
+    // Hash wyliczany dla nieistniejącego loginu, żeby czas odpowiedzi nie zdradzał, czy konto istnieje.
+    private static readonly Lazy<string> DummyHash = new(() => new PasswordHasher<ApplicationUser>().HashPassword(new(), Guid.NewGuid().ToString()));
+
     private string? errorMessage;
     private EditContext editContext = default!;
 
@@ -59,6 +57,9 @@
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? Reason { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,20 +81,42 @@
             return;
         }
 
-        // This doesn't count login failures towards account lockout
-        // To enable password failures to trigger account lockout, set lockoutOnFailure: true
-        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+        var user = await UserManager.FindByNameAsync(Input.UserName);
+        if (user is null)
+        {
+            UserManager.PasswordHasher.VerifyHashedPassword(new(), DummyHash.Value, Input.Password);
+            errorMessage = InvalidLoginMessage;
+            return;
+        }
+        if (!await UserManager.CheckPasswordAsync(user, Input.Password))
+        {
+            errorMessage = InvalidLoginMessage;
+            return;
+        }
 
+        // Poniższe komunikaty pojawiają się dopiero po poprawnym haśle, więc nie zdradzają istnienia loginu.
+        if (user.IsBlocked)
+        {
+            errorMessage = "Error: Konto zostało zablokowane przez administratora.";
+            return;
+        }
+        if (user.MustChangePassword && user.OneTimePasswordExpiresAt < DateTime.UtcNow)
+        {
+            errorMessage = "Error: Hasło jednorazowe wygasło. Poproś administratora o nowe.";
+            return;
+        }
+
+        var result = await SignInManager.PasswordSignInAsync(user, Input.Password, isPersistent: false, lockoutOnFailure: false);
         if (result.Succeeded)
         {
-            Logger.LogInformation("User logged in.");
+            Logger.LogInformation("User {UserName} logged in.", user.UserName);
             RedirectManager.RedirectTo(ReturnUrl);
         }
         else if (result.RequiresTwoFactor)
         {
             RedirectManager.RedirectTo(
                 "Account/LoginWith2fa",
-                new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
+                new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = false });
         }
         else if (result.IsLockedOut)
         {
@@ -102,21 +125,17 @@
         }
         else
         {
-            errorMessage = "Error: Invalid login attempt.";
+            errorMessage = InvalidLoginMessage;
         }
     }
 
     private sealed class InputModel
     {
-        [Required]
-        [EmailAddress]
-        public string Email { get; set; } = "";
+        [Required(ErrorMessage = "Podaj login.")]
+        public string UserName { get; set; } = "";
 
-        [Required]
+        [Required(ErrorMessage = "Podaj hasło.")]
         [DataType(DataType.Password)]
         public string Password { get; set; } = "";
-
-        [Display(Name = "Remember me?")]
-        public bool RememberMe { get; set; }
     }
 }

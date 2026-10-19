@@ -1,0 +1,128 @@
+﻿@page "/admin/settings"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SecurityApplication.Components.Account.Shared
+@using SecurityApplication.Data
+@using SecurityApplication.Security
+
+@attribute [Authorize(Policy = Permissions.SettingsManage)]
+
+@inject ApplicationDbContext Db
+
+<PageTitle>Ustawienia bezpieczeństwa</PageTitle>
+
+<h1>Ustawienia bezpieczeństwa</h1>
+
+<StatusMessage Message="@message" />
+
+@if (Input is not null)
+{
+<div class="row">
+    <div class="col-xl-6">
+        <EditForm Model="Input" FormName="settings" OnValidSubmit="OnValidSubmitAsync" method="post">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+
+            <h4>Polityka haseł</h4>
+            <div class="mb-3">
+                <label for="Input.MinPasswordLength" class="form-label">Minimalna długość hasła (8-64)</label>
+                <InputNumber @bind-Value="Input.MinPasswordLength" id="Input.MinPasswordLength" class="form-control" />
+            </div>
+            <div class="form-check mb-3">
+                <InputCheckbox @bind-Value="Input.ForbiddenWordsEnabled" id="Input.ForbiddenWordsEnabled" class="form-check-input" />
+                <label for="Input.ForbiddenWordsEnabled" class="form-check-label">
+                    Zakaz słów ze słownika organizacji (nazwa firmy/uczelni, nazwa aplikacji, miesiące, pory roku)
+                </label>
+            </div>
+            <div class="mb-3">
+                <label for="Input.ForbiddenWords" class="form-label">Słownik słów zakazanych (jedno słowo w linii, wielkość liter i polskie znaki nie mają znaczenia)</label>
+                <InputTextArea @bind-Value="Input.ForbiddenWords" id="Input.ForbiddenWords" class="form-control" rows="12" />
+            </div>
+            <div class="mb-3">
+                <label for="Input.PasswordValidityDays" class="form-label">Ważność hasła w dniach (0 = bez wygasania)</label>
+                <InputNumber @bind-Value="Input.PasswordValidityDays" id="Input.PasswordValidityDays" class="form-control" />
+            </div>
+
+            <h4>Sesja</h4>
+            <div class="mb-3">
+                <label for="Input.SessionTimeoutMinutes" class="form-label">Wylogowanie po bezczynności (minuty, 1-480)</label>
+                <InputNumber @bind-Value="Input.SessionTimeoutMinutes" id="Input.SessionTimeoutMinutes" class="form-control" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Zapisz</button>
+        </EditForm>
+    </div>
+</div>
+}
+
+@code {
+    private string? message;
+
+    [SupplyParameterFromForm]
+    private InputModel? Input { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Input is not null)
+        {
+            return;
+        }
+
+        var settings = await Db.GetSettingsAsync();
+        var words = await Db.ForbiddenWords.OrderBy(w => w.Word).Select(w => w.Word).ToListAsync();
+        Input = new()
+        {
+            MinPasswordLength = settings.MinPasswordLength,
+            ForbiddenWordsEnabled = settings.ForbiddenWordsEnabled,
+            PasswordValidityDays = settings.PasswordValidityDays,
+            SessionTimeoutMinutes = settings.SessionTimeoutMinutes,
+            ForbiddenWords = string.Join('\n', words),
+        };
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (Input is null)
+        {
+            return;
+        }
+
+        var settings = await Db.SecuritySettings.SingleAsync(s => s.Id == 1);
+        settings.MinPasswordLength = Input.MinPasswordLength;
+        settings.ForbiddenWordsEnabled = Input.ForbiddenWordsEnabled;
+        settings.PasswordValidityDays = Input.PasswordValidityDays;
+        settings.SessionTimeoutMinutes = Input.SessionTimeoutMinutes;
+
+        var newWords = (Input.ForbiddenWords ?? "")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(w => w.ToLowerInvariant())
+            .Distinct()
+            .ToList();
+        var existing = await Db.ForbiddenWords.ToListAsync();
+        Db.ForbiddenWords.RemoveRange(existing.Where(w => !newWords.Contains(w.Word)));
+        Db.ForbiddenWords.AddRange(newWords
+            .Where(w => existing.All(e => e.Word != w))
+            .Select(w => new ForbiddenWord { Word = w }));
+
+        await Db.SaveChangesAsync();
+        Input.ForbiddenWords = string.Join('\n', newWords.Order());
+        message = "Ustawienia zostały zapisane.";
+    }
+
+    private sealed class InputModel
+    {
+        [System.ComponentModel.DataAnnotations.Range(8, 64, ErrorMessage = "Minimalna długość hasła musi wynosić od 8 do 64.")]
+        public int MinPasswordLength { get; set; }
+
+        public bool ForbiddenWordsEnabled { get; set; }
+
+        public string? ForbiddenWords { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(0, 365, ErrorMessage = "Ważność hasła musi wynosić od 0 do 365 dni.")]
+        public int PasswordValidityDays { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(1, 480, ErrorMessage = "Czas bezczynności musi wynosić od 1 do 480 minut.")]
+        public int SessionTimeoutMinutes { get; set; }
+    }
+}

@@ -8,6 +8,7 @@
 @using SecurityApplication.Data
 
 @inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
 @inject UrlEncoder UrlEncoder
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<EnableAuthenticator> Logger
@@ -115,6 +116,8 @@ else
         }
 
         await UserManager.SetTwoFactorEnabledAsync(user, true);
+        // zmiana security stampa - odświeżenie ciasteczka, inaczej sesja zostałaby unieważniona
+        await SignInManager.RefreshSignInAsync(user);
         var userId = await UserManager.GetUserIdAsync(user);
         Logger.LogInformation("User with ID '{UserId}' has enabled 2FA with an authenticator app.", userId);
 
@@ -137,13 +140,14 @@ else
         if (string.IsNullOrEmpty(unformattedKey))
         {
             await UserManager.ResetAuthenticatorKeyAsync(user);
+            await SignInManager.RefreshSignInAsync(user);
             unformattedKey = await UserManager.GetAuthenticatorKeyAsync(user);
         }
 
         sharedKey = FormatKey(unformattedKey!);
 
-        var email = await UserManager.GetEmailAsync(user);
-        authenticatorUri = GenerateQrCodeUri(email!, unformattedKey!);
+        var userName = await UserManager.GetUserNameAsync(user);
+        authenticatorUri = GenerateQrCodeUri(userName!, unformattedKey!);
     }
 
     private string FormatKey(string unformattedKey)
@@ -168,7 +172,7 @@ else
         return string.Format(
             CultureInfo.InvariantCulture,
             AuthenticatorUriFormat,
-            UrlEncoder.Encode("Microsoft.AspNetCore.Identity.UI"),
+            UrlEncoder.Encode("SecurityApplication"),
             UrlEncoder.Encode(email),
             unformattedKey);
     }

@@ -1,8 +1,18 @@
-﻿@page "/Account/AccessDenied"
+@page "/Account/AccessDenied"
 
-<PageTitle>Access denied</PageTitle>
+<PageTitle>403 - Brak dostępu</PageTitle>
 
 <header>
-    <h1 class="text-danger">Access denied</h1>
-    <p class="text-danger">You do not have access to this resource.</p>
+    <h1 class="text-danger">403 - Brak dostępu</h1>
+    <p class="text-danger">Twoja rola nie ma uprawnień do tego zasobu.</p>
 </header>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        HttpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+    }
+}

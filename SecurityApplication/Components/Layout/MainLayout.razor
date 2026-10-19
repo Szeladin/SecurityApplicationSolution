@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@using SecurityApplication.Security
 
 <div class="page">
     <div class="sidebar">
@@ -7,7 +8,10 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <AuthorizeView>
+                <span>Zalogowany: <strong>@context.User.Identity?.Name</strong></span>
+                <div id="session-timeout" data-minutes="@HttpContext?.Items[SessionSecurity.TimeoutItemKey]" hidden></div>
+            </AuthorizeView>
         </div>
 
         <article class="content px-4">
@@ -21,3 +25,8 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+}

@@ -1,7 +1,25 @@
-﻿@page "/"
+@page "/"
+@using SecurityApplication.Components.Account.Shared
+@using SecurityApplication.Security
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Strona główna</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>SecurityApplication</h1>
+<StatusMessage />
 
-Welcome to your new app.
+<AuthorizeView>
+    <Authorized>
+        <p>Witaj, <strong>@context.User.Identity?.Name</strong>.</p>
+        <p>Rola: <strong>@string.Join(", ", context.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))</strong></p>
+        <p>Uprawnienia:</p>
+        <ul>
+            @foreach (var permission in context.User.FindAll(Permissions.ClaimType))
+            {
+                <li><code>@permission.Value</code></li>
+            }
+        </ul>
+    </Authorized>
+    <NotAuthorized>
+        <p><a href="Account/Login">Zaloguj się</a>, aby korzystać z aplikacji.</p>
+    </NotAuthorized>
+</AuthorizeView>

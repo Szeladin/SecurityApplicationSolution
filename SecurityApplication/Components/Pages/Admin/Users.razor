@@ -1,0 +1,159 @@
+﻿@page "/admin/users"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SecurityApplication.Components.Account.Shared
+@using SecurityApplication.Data
+@using SecurityApplication.Security
+
+@attribute [Authorize(Policy = Permissions.UsersManage)]
+
+@inject ApplicationDbContext Db
+@inject UserManager<ApplicationUser> UserManager
+@inject PasswordService PasswordService
+
+<PageTitle>Użytkownicy</PageTitle>
+
+<h1>Użytkownicy</h1>
+
+<StatusMessage Message="@message" />
+@if (oneTimePassword is not null)
+{
+    <div class="alert alert-warning">
+        Hasło jednorazowe dla <strong>@oneTimePassword.Value.UserName</strong>:
+        <code class="fs-5">@oneTimePassword.Value.Password</code>
+        (ważne do @oneTimePassword.Value.ExpiresAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")). Przekaż je użytkownikowi - nie będzie ponownie wyświetlone.
+    </div>
+}
+
+<p><a class="btn btn-primary" href="admin/users/new">Dodaj użytkownika</a></p>
+
+<form method="post" @formname="user-action" @onsubmit="HandleCommandAsync">
+    <AntiforgeryToken />
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Login</th>
+                <th>Imię i nazwisko</th>
+                <th>Rola</th>
+                <th>Status</th>
+                <th>Hasło zmienione</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                var u = row.User;
+                var isAdmin = u.UserName == DbSeeder.AdminUserName;
+                <tr>
+                    <td>@u.UserName</td>
+                    <td>@u.FullName</td>
+                    <td>@row.Role</td>
+                    <td>
+                        @if (u.IsBlocked)
+                        {
+                            <span class="badge bg-danger">Zablokowany</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Aktywny</span>
+                        }
+                        @if (u.MustChangePassword)
+                        {
+                            if (u.OneTimePasswordExpiresAt < DateTime.UtcNow)
+                            {
+                                <span class="badge bg-secondary ms-1">Hasło jednorazowe wygasło</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark ms-1">Hasło jednorazowe</span>
+                            }
+                        }
+                    </td>
+                    <td>@(u.PasswordChangedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary" href="admin/users/edit/@u.Id">Edytuj</a>
+                        @if (!isAdmin)
+                        {
+                            <button type="submit" name="Command" value="reset:@u.Id" class="btn btn-sm btn-outline-warning"
+                                    onclick="return confirm('Wygenerować nowe hasło jednorazowe dla @u.UserName?')">Resetuj hasło</button>
+                            if (u.IsBlocked)
+                            {
+                                <button type="submit" name="Command" value="unblock:@u.Id" class="btn btn-sm btn-outline-success">Odblokuj</button>
+                            }
+                            else
+                            {
+                                <button type="submit" name="Command" value="block:@u.Id" class="btn btn-sm btn-outline-secondary">Zablokuj</button>
+                            }
+                            <button type="submit" name="Command" value="delete:@u.Id" class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Usunąć użytkownika @u.UserName?')">Usuń</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</form>
+
+@code {
+    private List<(ApplicationUser User, string Role)> rows = [];
+    private string? message;
+    private (string UserName, string Password, DateTime ExpiresAt)? oneTimePassword;
+
+    [SupplyParameterFromForm(FormName = "user-action")]
+    private string? Command { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var roles = await (from ur in Db.UserRoles
+                           join r in Db.Roles on ur.RoleId equals r.Id
+                           select new { ur.UserId, r.Name }).ToListAsync();
+        var users = await Db.Users.AsNoTracking().OrderBy(u => u.UserName).ToListAsync();
+        rows = users.Select(u => (u, string.Join(", ", roles.Where(r => r.UserId == u.Id).Select(r => r.Name)))).ToList();
+    }
+
+    private async Task HandleCommandAsync()
+    {
+        var parts = (Command ?? "").Split(':', 2);
+        var user = parts.Length == 2 ? await UserManager.FindByIdAsync(parts[1]) : null;
+        if (user is null)
+        {
+            message = "Error: Nie znaleziono użytkownika.";
+            return;
+        }
+
+        var isAdmin = user.UserName == DbSeeder.AdminUserName;
+        switch (parts[0])
+        {
+            case "reset" when !isAdmin:
+                var (password, expiresAt) = await PasswordService.SetOneTimePasswordAsync(user);
+                oneTimePassword = (user.UserName!, password, expiresAt);
+                message = $"Hasło użytkownika {user.UserName} zostało zresetowane.";
+                break;
+            case "block" when !isAdmin:
+                user.IsBlocked = true;
+                // nowy security stamp natychmiast kończy aktywne sesje zablokowanego użytkownika
+                await UserManager.UpdateSecurityStampAsync(user);
+                message = $"Użytkownik {user.UserName} został zablokowany.";
+                break;
+            case "unblock" when !isAdmin:
+                user.IsBlocked = false;
+                await UserManager.UpdateAsync(user);
+                message = $"Użytkownik {user.UserName} został odblokowany.";
+                break;
+            case "delete" when !isAdmin:
+                await UserManager.DeleteAsync(user);
+                message = $"Użytkownik {user.UserName} został usunięty.";
+                break;
+            default:
+                message = "Error: Tej operacji nie można wykonać na koncie ADMIN.";
+                break;
+        }
+
+        await LoadAsync();
+    }
+}

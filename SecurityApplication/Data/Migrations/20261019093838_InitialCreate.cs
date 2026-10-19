@@ -1,12 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
-using System;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace SecurityApplication.Migrations
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
+namespace SecurityApplication.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class CreateIdentitySchema : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -30,6 +32,11 @@ namespace SecurityApplication.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    FullName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    IsBlocked = table.Column<bool>(type: "bit", nullable: false),
+                    MustChangePassword = table.Column<bool>(type: "bit", nullable: false),
+                    OneTimePasswordExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PasswordChangedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -48,6 +55,51 @@ namespace SecurityApplication.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUsers", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Documents",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Content = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
+                    AuthorUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Documents", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ForbiddenWords",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Word = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ForbiddenWords", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SecuritySettings",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    MinPasswordLength = table.Column<int>(type: "int", nullable: false),
+                    ForbiddenWordsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    PasswordValidityDays = table.Column<int>(type: "int", nullable: false),
+                    SessionTimeoutMinutes = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SecuritySettings", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -175,6 +227,58 @@ namespace SecurityApplication.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "PasswordHistory",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PasswordHistory", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PasswordHistory_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.InsertData(
+                table: "ForbiddenWords",
+                columns: new[] { "Id", "Word" },
+                values: new object[,]
+                {
+                    { 1, "firma" },
+                    { 2, "uczelnia" },
+                    { 3, "securityapplication" },
+                    { 4, "styczeń" },
+                    { 5, "luty" },
+                    { 6, "marzec" },
+                    { 7, "kwiecień" },
+                    { 8, "maj" },
+                    { 9, "czerwiec" },
+                    { 10, "lipiec" },
+                    { 11, "sierpień" },
+                    { 12, "wrzesień" },
+                    { 13, "październik" },
+                    { 14, "listopad" },
+                    { 15, "grudzień" },
+                    { 16, "wiosna" },
+                    { 17, "lato" },
+                    { 18, "jesień" },
+                    { 19, "zima" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "SecuritySettings",
+                columns: new[] { "Id", "ForbiddenWordsEnabled", "MinPasswordLength", "PasswordValidityDays", "SessionTimeoutMinutes" },
+                values: new object[] { 1, true, 14, 0, 15 });
+
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
                 table: "AspNetRoleClaims",
@@ -218,6 +322,17 @@ namespace SecurityApplication.Migrations
                 column: "NormalizedUserName",
                 unique: true,
                 filter: "[NormalizedUserName] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ForbiddenWords_Word",
+                table: "ForbiddenWords",
+                column: "Word",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PasswordHistory_UserId",
+                table: "PasswordHistory",
+                column: "UserId");
         }
 
         /// <inheritdoc />
@@ -240,6 +355,18 @@ namespace SecurityApplication.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUserTokens");
+
+            migrationBuilder.DropTable(
+                name: "Documents");
+
+            migrationBuilder.DropTable(
+                name: "ForbiddenWords");
+
+            migrationBuilder.DropTable(
+                name: "PasswordHistory");
+
+            migrationBuilder.DropTable(
+                name: "SecuritySettings");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
