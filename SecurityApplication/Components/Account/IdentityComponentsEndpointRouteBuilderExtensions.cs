@@ -19,7 +19,6 @@ namespace Microsoft.AspNetCore.Routing
                 [FromServices] SignInManager<ApplicationUser> signInManager,
                 [FromForm] string returnUrl) =>
             {
-                // Nowy security stamp unieważnia ciasteczko sesji także po stronie serwera.
                 var appUser = await signInManager.UserManager.GetUserAsync(user);
                 if (appUser is not null)
                 {

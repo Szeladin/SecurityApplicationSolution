@@ -5,20 +5,18 @@ namespace SecurityApplication.Security
 {
     public class PasswordService(UserManager<ApplicationUser> userManager, ApplicationDbContext db)
     {
-        // Nadanie hasła jednorazowego przez administratora (nowe konto lub reset).
-        // Hasło jednorazowe nie przechodzi przez politykę haseł - użytkownik i tak musi je zmienić.
+
         public async Task<(string Password, DateTime ExpiresAt)> SetOneTimePasswordAsync(ApplicationUser user)
         {
             var password = OneTimePasswordGenerator.Generate();
             user.PasswordHash = userManager.PasswordHasher.HashPassword(user, password);
             user.MustChangePassword = true;
             user.OneTimePasswordExpiresAt = DateTime.UtcNow.Add(OneTimePasswordGenerator.Validity);
-            // nowy security stamp unieważnia aktywne sesje użytkownika
+
             await userManager.UpdateSecurityStampAsync(user);
             return (password, user.OneTimePasswordExpiresAt.Value);
         }
 
-        // Zmiana hasła przez użytkownika - wymaga starego hasła.
         public async Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword)
         {
             var oldHash = user.PasswordHash;
@@ -30,7 +28,6 @@ namespace SecurityApplication.Security
             return result;
         }
 
-        // Wymuszona zmiana hasła (pierwsze logowanie / wygasłe hasło) - użytkownik jest już uwierzytelniony.
         public async Task<IdentityResult> ForceChangePasswordAsync(ApplicationUser user, string newPassword)
         {
             var oldHash = user.PasswordHash;

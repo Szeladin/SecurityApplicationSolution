@@ -59,7 +59,6 @@
 
     private async Task DeleteAsync()
     {
-        // Przycisk "Usuń" jest ukryty dla ról bez uprawnienia, ale to serwer decyduje o dostępie.
         if (!(await AuthorizationService.AuthorizeAsync(HttpContext.User, Permissions.DocumentsDelete)).Succeeded)
         {
             HttpContext.Response.StatusCode = StatusCodes.Status403Forbidden;

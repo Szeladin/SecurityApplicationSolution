@@ -136,7 +136,6 @@
                 break;
             case "block" when !isAdmin:
                 user.IsBlocked = true;
-                // nowy security stamp natychmiast kończy aktywne sesje zablokowanego użytkownika
                 await UserManager.UpdateSecurityStampAsync(user);
                 message = $"Użytkownik {user.UserName} został zablokowany.";
                 break;

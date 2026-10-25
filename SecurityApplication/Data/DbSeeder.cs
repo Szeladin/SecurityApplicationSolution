@@ -9,7 +9,6 @@ namespace SecurityApplication.Data
     {
         public const string AdminUserName = "ADMIN";
 
-        // Stałe konto ADMIN + 7 użytkowników testowych .
         private static readonly (string UserName, string FullName, string Role)[] Users =
         [
             (AdminUserName, "Administrator systemu", Roles.Administrator),
@@ -31,7 +30,6 @@ namespace SecurityApplication.Data
 
             await db.Database.MigrateAsync();
 
-            // Role i przypisane im uprawnienia (synchronizowane z Permissions.ByRole).
             foreach (var (roleName, permissions) in Permissions.ByRole)
             {
                 var role = await roleManager.FindByNameAsync(roleName);
@@ -53,7 +51,6 @@ namespace SecurityApplication.Data
                 }
             }
 
-            // Konta tworzone z hasłem początkowym z konfiguracji - przy pierwszym logowaniu wymuszana jest zmiana.
             var initialPassword = configuration["Seed:InitialPassword"];
             if (string.IsNullOrEmpty(initialPassword))
             {

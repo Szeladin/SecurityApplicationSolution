@@ -104,7 +104,6 @@ else if (Input is not null && (IsNew || user is not null))
         }
 
         isAdminAccount = user.UserName == DbSeeder.AdminUserName;
-        // Rola pobierana przed przypisaniem Input - formularz renderuje się dopiero, gdy model jest gotowy.
         var role = (await UserManager.GetRolesAsync(user)).FirstOrDefault() ?? Roles.Czytelnik;
         Input ??= new()
         {
@@ -121,7 +120,6 @@ else if (Input is not null && (IsNew || user is not null))
             return;
         }
 
-        // Rola z formularza jest walidowana po stronie serwera - nie da się nadać roli Administrator.
         if (!isAdminAccount && !Roles.Assignable.Contains(Input.Role))
         {
             message = "Error: Nieprawidłowa rola.";

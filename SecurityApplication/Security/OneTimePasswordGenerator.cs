@@ -1,8 +1,7 @@
 using System.Security.Cryptography;
 
-namespace SecurityApplication.Security
-{
-    // Hasło jednorazowe wariantu 10: fraza 3 słów + 2 cyfry, ważna 12 h (np. "rower-lampa-sowa-47").
+namespace SecurityApplication.Security { 
+
     public static class OneTimePasswordGenerator
     {
         public static readonly TimeSpan Validity = TimeSpan.FromHours(12);

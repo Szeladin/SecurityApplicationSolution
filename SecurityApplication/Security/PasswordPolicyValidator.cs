@@ -6,8 +6,6 @@ using SecurityApplication.Data;
 
 namespace SecurityApplication.Security
 {
-    // Polityka haseł wariantu 10: minimalna długość (domyślnie 14), opcjonalnie zakaz słów
-    // ze słownika organizacji, oraz brak powtórzenia poprzednich haseł.
     public class PasswordPolicyValidator(ApplicationDbContext db) : IPasswordValidator<ApplicationUser>
     {
         public const int MaxLength = 128;
@@ -61,7 +59,6 @@ namespace SecurityApplication.Security
                 manager.PasswordHasher.VerifyHashedPassword(user, hash, password) != PasswordVerificationResult.Failed);
         }
 
-        // Porównanie bez względu na wielkość liter i polskie znaki (np. "Styczen" == "styczeń").
         public static string Normalize(string value)
         {
             var decomposed = value.ToLowerInvariant().Replace('ł', 'l').Normalize(NormalizationForm.FormD);

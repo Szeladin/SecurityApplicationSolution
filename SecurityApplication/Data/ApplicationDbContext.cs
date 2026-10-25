@@ -14,12 +14,9 @@ namespace SecurityApplication.Data
 
         private static readonly string[] DefaultForbiddenWords =
         [
-            // nazwa firmy / uczelni i aplikacji - do uzupełnienia w panelu administratora
             "firma", "uczelnia", "securityapplication",
-            // miesiące
             "styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec",
             "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień",
-            // pory roku
             "wiosna", "lato", "jesień", "zima",
         ];
 

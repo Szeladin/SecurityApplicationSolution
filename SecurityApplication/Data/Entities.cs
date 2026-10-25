@@ -2,7 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SecurityApplication.Data
 {
-    // Ustawienia bezpieczeństwa edytowane w panelu administratora (zawsze jeden wiersz, Id = 1).
     public class SecuritySettings
     {
         public int Id { get; set; }
@@ -10,10 +9,8 @@ namespace SecurityApplication.Data
         [Range(8, 64)]
         public int MinPasswordLength { get; set; } = 14;
 
-        // Reguła z wariantu 10: hasło nie może zawierać słów ze słownika zakazanych.
         public bool ForbiddenWordsEnabled { get; set; } = true;
 
-        // 0 = hasło nie wygasa (zgodnie z NIST SP 800-63B-4).
         [Range(0, 365)]
         public int PasswordValidityDays { get; set; }
 
@@ -29,7 +26,6 @@ namespace SecurityApplication.Data
         public string Word { get; set; } = "";
     }
 
-    // Hashe poprzednich haseł - nowe hasło nie może się z żadnym z nich pokrywać.
     public class PasswordHistory
     {
         public int Id { get; set; }
@@ -42,7 +38,6 @@ namespace SecurityApplication.Data
         public DateTime CreatedAt { get; set; }
     }
 
-    // Zasób, na którym demonstrowane są uprawnienia ról.
     public class Document
     {
         public int Id { get; set; }

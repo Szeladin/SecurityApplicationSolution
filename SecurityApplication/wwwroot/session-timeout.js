@@ -1,4 +1,3 @@
-// Po upływie limitu bezczynności przechodzi na stronę logowania - serwer i tak odrzuci już tę sesję.
 (() => {
     let timer;
 

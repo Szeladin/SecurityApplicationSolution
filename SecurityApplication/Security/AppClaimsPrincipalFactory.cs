@@ -5,7 +5,6 @@ using SecurityApplication.Data;
 
 namespace SecurityApplication.Security
 {
-    // Do sesji trafiają role i ich uprawnienia (claimy ról) oraz znacznik wymaganej zmiany hasła.
     public class AppClaimsPrincipalFactory(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager,

@@ -43,7 +43,6 @@
 @code {
     private const string InvalidLoginMessage = "Error: Login lub hasło niepoprawne";
 
-    // Hash wyliczany dla nieistniejącego loginu, żeby czas odpowiedzi nie zdradzał, czy konto istnieje.
     private static readonly Lazy<string> DummyHash = new(() => new PasswordHasher<ApplicationUser>().HashPassword(new(), Guid.NewGuid().ToString()));
 
     private string? errorMessage;
@@ -94,7 +93,6 @@
             return;
         }
 
-        // Poniższe komunikaty pojawiają się dopiero po poprawnym haśle, więc nie zdradzają istnienia loginu.
         if (user.IsBlocked)
         {
             errorMessage = "Error: Konto zostało zablokowane przez administratora.";
