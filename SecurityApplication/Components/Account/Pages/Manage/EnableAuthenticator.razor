@@ -5,6 +5,7 @@
 @using System.Text
 @using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
+@using QRCoder
 @using SecurityApplication.Data
 
 @inject UserManager<ApplicationUser> UserManager
@@ -38,9 +39,10 @@ else
             </li>
             <li>
                 <p>Scan the QR Code or enter this key <kbd>@sharedKey</kbd> into your two factor authenticator app. Spaces and casing do not matter.</p>
-                <div class="alert alert-info">Learn how to <a href="https://go.microsoft.com/fwlink/?Linkid=852423">enable QR code generation</a>.</div>
-                <div></div>
-                <div data-url="@authenticatorUri"></div>
+                @if (qrCodeSvg is not null)
+                {
+                    <div class="mb-3" style="width: 200px; background: #fff; padding: 8px;">@((MarkupString)qrCodeSvg)</div>
+                }
             </li>
             <li>
                 <p>
@@ -73,6 +75,7 @@ else
     private ApplicationUser? user;
     private string? sharedKey;
     private string? authenticatorUri;
+    private string? qrCodeSvg;
     private IEnumerable<string>? recoveryCodes;
 
     [CascadingParameter]
@@ -148,6 +151,10 @@ else
 
         var userName = await UserManager.GetUserNameAsync(user);
         authenticatorUri = GenerateQrCodeUri(userName!, unformattedKey!);
+
+        using var qrGenerator = new QRCodeGenerator();
+        using var qrCodeData = qrGenerator.CreateQrCode(authenticatorUri, QRCodeGenerator.ECCLevel.Q);
+        qrCodeSvg = new SvgQRCode(qrCodeData).GetGraphic(new System.Drawing.Size(184, 184), sizingMode: SvgQRCode.SizingMode.ViewBoxAttribute);
     }
 
     private string FormatKey(string unformattedKey)

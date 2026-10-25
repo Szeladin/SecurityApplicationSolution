@@ -10,9 +10,6 @@ namespace SecurityApplication.Security
     {
         private const string LastActivityKey = ".last_activity";
         public const string TimeoutItemKey = "SessionTimeoutMinutes";
-
-        // Wywoływane przy każdym żądaniu z ciasteczkiem sesji: najpierw walidacja security stampa
-        // (wylogowanie / blokada / reset hasła unieważniają sesję), potem limit bezczynności.
         public static async Task ValidatePrincipalAsync(
             CookieValidatePrincipalContext context, Func<CookieValidatePrincipalContext, Task> validateSecurityStamp)
         {
@@ -38,11 +35,8 @@ namespace SecurityApplication.Security
 
             context.Properties.Items[LastActivityKey] = now.ToString("O", CultureInfo.InvariantCulture);
             context.ShouldRenew = true;
-            // dla licznika po stronie przeglądarki (MainLayout)
             context.HttpContext.Items[TimeoutItemKey] = timeoutMinutes;
         }
-
-        // Dopóki hasło nie zostanie zmienione, jedyne dostępne strony to zmiana hasła i wylogowanie.
         public static IApplicationBuilder UseForcedPasswordChange(this IApplicationBuilder app) =>
             app.Use(async (context, next) =>
             {

@@ -26,15 +26,14 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Strict;
-    // Górny limit życia ciasteczka; właściwy limit bezczynności liczy SessionSecurity (ustawienie admina).
+
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
 
     var validateSecurityStamp = options.Events.OnValidatePrincipal;
     options.Events.OnValidatePrincipal = context => SessionSecurity.ValidatePrincipalAsync(context, validateSecurityStamp);
 });
 
-// Security stamp sprawdzany przy każdym żądaniu - wylogowanie, blokada lub reset hasła
-// natychmiast unieważniają sesję, a zmiana roli od razu zmienia uprawnienia.
+
 builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
 
 var authorization = builder.Services.AddAuthorizationBuilder();
@@ -43,8 +42,7 @@ foreach (var permission in Permissions.All)
     authorization.AddPolicy(permission, policy => policy.RequireClaim(Permissions.ClaimType, permission));
 }
 
-// PBKDF2-HMAC-SHA512 (format v3 ASP.NET Identity) - liczba iteracji wg OWASP Password Storage Cheat Sheet.
-// Starsze hashe (100 000 iteracji) są automatycznie przeliczane przy najbliższym poprawnym logowaniu.
+//Konfiguracja hashowania haseł
 builder.Services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -52,13 +50,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
+//konfiguracja Identity
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
-        // Version2 - schemat bez tabeli passkeys (passkeys nie są używane).
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version2;
 
-        // Reguły złożoności wyłączone (NIST SP 800-63B-4) - politykę realizuje PasswordPolicyValidator.
         options.Password.RequireDigit = false;
         options.Password.RequireLowercase = false;
         options.Password.RequireUppercase = false;

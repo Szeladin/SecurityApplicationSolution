@@ -7,8 +7,6 @@ namespace SecurityApplication.Security
         public const string Redaktor = "Redaktor";
         public const string Pracownik = "Pracownik";
         public const string Czytelnik = "Czytelnik";
-
-        // Rolę Administrator ma wyłącznie stałe konto ADMIN - nie można jej nadać w panelu.
         public static readonly string[] Assignable = [Kierownik, Redaktor, Pracownik, Czytelnik];
     }
 
@@ -25,12 +23,9 @@ namespace SecurityApplication.Security
 
         public static readonly string[] All =
             [UsersManage, SettingsManage, DocumentsRead, DocumentsCreate, DocumentsEdit, DocumentsDelete];
-
-        // RBAC: uprawnienia przypisane rolom (zasada najmniejszych uprawnień).
-        // Zapisywane w bazie jako claimy ról (AspNetRoleClaims) przy starcie aplikacji.
         public static readonly IReadOnlyDictionary<string, string[]> ByRole = new Dictionary<string, string[]>
         {
-            [Roles.Administrator] = [UsersManage, SettingsManage],
+            [Roles.Administrator] = All,
             [Roles.Kierownik] = [DocumentsRead, DocumentsCreate, DocumentsEdit, DocumentsDelete],
             [Roles.Redaktor] = [DocumentsRead, DocumentsCreate, DocumentsEdit],
             [Roles.Pracownik] = [DocumentsRead, DocumentsCreate],
@@ -40,7 +35,6 @@ namespace SecurityApplication.Security
 
     public static class AppClaims
     {
-        // Obecny w sesji, gdy użytkownik musi zmienić hasło (pierwsze logowanie lub hasło wygasło).
         public const string PasswordChangeRequired = "pwd_change_required";
     }
 }
